@@ -11,6 +11,11 @@ jobs:
 
       - name: Unpack iOS wrapper from the uploaded zip
         run: |
+          if [ ! -f package.json ]; then
+            unzip -oq xom_nong_trai-web-main.zip -d /tmp/game
+            cp -R /tmp/game/xom_nong_trai-web-main/. .
+          fi
+          test -f package-lock.json
           unzip -oq xom_nong_trai_ios_overlay.zip -d /tmp/ov
           cp -R /tmp/ov/xom_nong_trai_ios_overlay/ios ./ios
           ls ios/XomNongTrai
