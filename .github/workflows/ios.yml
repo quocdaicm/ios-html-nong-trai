@@ -1,0 +1,59 @@
+name: Build iOS (unsigned IPA)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack iOS wrapper from the uploaded zip
+        run: |
+          unzip -oq xom_nong_trai_ios_overlay.zip -d /tmp/ov
+          cp -R /tmp/ov/xom_nong_trai_ios_overlay/ios ./ios
+          ls ios/XomNongTrai
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Build web game (base "/", served locally inside the app)
+        run: |
+          npm ci
+          node scripts/patch-client.mjs
+          node scripts/build-pages.mjs --base / --origin http://127.0.0.1:38765
+
+      - name: Copy web build into the iOS project
+        run: |
+          rm -rf ios/XomNongTrai/Web
+          cp -R .pages ios/XomNongTrai/Web
+          test -f ios/XomNongTrai/Web/index.html
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          cd ios && xcodegen generate
+
+      - name: Build (no code signing)
+        run: |
+          cd ios
+          xcodebuild -project XomNongTrai.xcodeproj -scheme XomNongTrai \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          cd ios
+          rm -rf Payload && mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/XomNongTrai.app Payload/
+          zip -qr XomNongTrai-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: XomNongTrai-unsigned-ipa
+          path: ios/XomNongTrai-unsigned.ipa
